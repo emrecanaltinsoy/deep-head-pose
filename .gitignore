@@ -1,6 +1,7 @@
 *.pyc
 *.npy
 data/*
+!data/.gitkeep
 output/*
 *.jpg
 *.png

@@ -134,7 +134,7 @@ if __name__ == "__main__":
     cudnn.enabled = True
     num_epochs = args.num_epochs
     batch_size = args.batch_size
-    device = f"cuda:{args.gpu_id}" if args.gpu_id else "cpu"
+    device = f"cuda:{args.gpu_id}" if args.gpu_id is not None else "cpu"
     device = torch.device(device)
 
     if not os.path.exists("output/snapshots"):

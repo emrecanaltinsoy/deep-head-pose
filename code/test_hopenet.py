@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
     cudnn.enabled = True
     snapshot_path = args.snapshot
-    device = f"cuda:{args.gpu_id}" if args.gpu_id else "cpu"
+    device = f"cuda:{args.gpu_id}" if args.gpu_id is not None else "cpu"
     device = torch.device(device)
 
     # ResNet50 structure

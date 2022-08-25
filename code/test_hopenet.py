@@ -3,6 +3,7 @@ import sys, os, argparse
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -13,7 +14,10 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torch.nn.functional as F
 
-import datasets, hopenet, utils
+import datasets, utils
+from hopenet import Hopenet
+from hopenetlite_v2 import HopeNetLite
+from stable_hopenetlite import shufflenet_v2_x1_0
 
 
 def parse_args():
@@ -53,6 +57,9 @@ def parse_args():
         "--batch_size", dest="batch_size", help="Batch size.", default=1, type=int
     )
     parser.add_argument(
+        "--model", dest="model", help="Model type.", default="hopenet", type=int
+    )
+    parser.add_argument(
         "--save_viz",
         dest="save_viz",
         help="Save images with pose cube.",
@@ -77,15 +84,23 @@ if __name__ == "__main__":
     device = torch.device(device)
 
     # ResNet50 structure
-    model = hopenet.Hopenet(torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], 66)
+    if args.model == "hopenet":
+        model = Hopenet(torchvision.models.resnet.Bottleneck, [3, 4, 6, 3], 66)
+    elif args.model == "hopenetlite":
+        model = HopeNetLite()
+    elif args.model == "shufflenet":
+        model = shufflenet_v2_x1_0()
+
+    model.to(device=device)
 
     print("Loading snapshot.")
     # Load snapshot
-    saved_state_dict = torch.load(snapshot_path)
+    saved_state_dict = torch.load(snapshot_path, map_location=device)
     model.load_state_dict(saved_state_dict)
 
-    print("Loading data.")
+    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
 
+    print("Loading data.")
     transformations = transforms.Compose(
         [
             transforms.Resize(224),
@@ -124,16 +139,13 @@ if __name__ == "__main__":
     else:
         print("Error: not a valid dataset name")
         sys.exit()
+
     test_loader = torch.utils.data.DataLoader(
         dataset=pose_dataset, batch_size=args.batch_size, num_workers=2
     )
 
-    model.to(device=device)
-
     print("Ready to test network.")
-
     # Test the Model
-    model.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
     total = 0
 
     idx_tensor = [idx for idx in range(66)]
@@ -144,6 +156,10 @@ if __name__ == "__main__":
     roll_error = 0.0
 
     l1loss = torch.nn.L1Loss(size_average=False)
+
+    if args.save_viz:
+        save_viz_dir = Path("output/images")
+        save_viz_dir.mkdir(exist_ok=True, parents=True)
 
     for i, (images, labels, cont_labels, name) in enumerate(test_loader):
         images = Variable(images).to(device=device)
@@ -182,18 +198,32 @@ if __name__ == "__main__":
             else:
                 cv2_img = cv2.imread(os.path.join(args.data_dir, name + ".jpg"))
             if args.batch_size == 1:
-                error_string = "y %.2f, p %.2f, r %.2f" % (
-                    torch.sum(torch.abs(yaw_predicted - label_yaw)),
-                    torch.sum(torch.abs(pitch_predicted - label_pitch)),
-                    torch.sum(torch.abs(roll_predicted - label_roll)),
+                pred_string = "pred: y %.2f, p %.2f, r %.2f" % (
+                    yaw_predicted,
+                    pitch_predicted,
+                    roll_predicted,
                 )
                 cv2.putText(
                     cv2_img,
-                    error_string,
+                    pred_string,
                     (30, cv2_img.shape[0] - 30),
                     fontFace=1,
                     fontScale=1,
-                    color=(0, 0, 255),
+                    color=(0, 255, 255),
+                    thickness=2,
+                )
+                gt_string = "gt: y %.2f, p %.2f, r %.2f" % (
+                    label_yaw,
+                    label_pitch,
+                    label_roll,
+                )
+                cv2.putText(
+                    cv2_img,
+                    gt_string,
+                    (30, cv2_img.shape[0] - 50),
+                    fontFace=1,
+                    fontScale=1,
+                    color=(0, 255, 255),
                     thickness=2,
                 )
             # utils.plot_pose_cube(cv2_img, yaw_predicted[0], pitch_predicted[0], roll_predicted[0], size=100)
@@ -206,7 +236,7 @@ if __name__ == "__main__":
                 tdy=200,
                 size=100,
             )
-            cv2.imwrite(os.path.join("output/images", name + ".jpg"), cv2_img)
+            cv2.imwrite(str(save_viz_dir.joinpath(f"{name}.jpg")), cv2_img)
 
     print(
         "Test error in degrees of the model on the "

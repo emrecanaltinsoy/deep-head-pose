@@ -41,7 +41,7 @@ def parse_args():
         type=str,
     )
     parser.add_argument(
-        "--model", dest="model", help="Model type.", default="hopenet", type=int
+        "--model", dest="model", help="Model type.", default="hopenet", type=str
     )
     parser.add_argument(
         "--face_model",

@@ -57,7 +57,7 @@ def parse_args():
         "--batch_size", dest="batch_size", help="Batch size.", default=1, type=int
     )
     parser.add_argument(
-        "--model", dest="model", help="Model type.", default="hopenet", type=int
+        "--model", dest="model", help="Model type.", default="hopenet", type=str
     )
     parser.add_argument(
         "--save_viz",

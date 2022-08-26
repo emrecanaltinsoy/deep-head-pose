@@ -7,4 +7,4 @@ output/*
 *.png
 **/*.xml
 **/*.txt
-shape_predictor_68_face_landmarks.dat
+*.dat
